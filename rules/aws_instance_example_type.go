@@ -10,16 +10,26 @@ import (
 // AwsInstanceExampleTypeRule checks whether ...
 type AwsInstanceExampleTypeRule struct {
 	tflint.DefaultRule
+
+	resourceType  string
+	attributeName string
+	instanceTypes map[string]bool
 }
 
 // NewAwsInstanceExampleTypeRule returns a new rule
 func NewAwsInstanceExampleTypeRule() *AwsInstanceExampleTypeRule {
-	return &AwsInstanceExampleTypeRule{}
+	return &AwsInstanceExampleTypeRule{
+		resourceType:  "aws_db_instance",
+		attributeName: "instance_class",
+		instanceTypes: map[string]bool{
+			"t2.micro": true,
+		},
+	}
 }
 
 // Name returns the rule name
 func (r *AwsInstanceExampleTypeRule) Name() string {
-	return "aws_instance_example_type"
+	return "aws_instance_t2.micro_type"
 }
 
 // Enabled returns whether the rule is enabled by default
@@ -34,7 +44,7 @@ func (r *AwsInstanceExampleTypeRule) Severity() tflint.Severity {
 
 // Link returns the rule reference link
 func (r *AwsInstanceExampleTypeRule) Link() string {
-	return ""
+	return "Link goes here!"
 }
 
 // Check checks whether ...
@@ -54,16 +64,18 @@ func (r *AwsInstanceExampleTypeRule) Check(runner tflint.Runner) error {
 		if !exists {
 			continue
 		}
-
 		var instanceType string
 		err := runner.EvaluateExpr(attribute.Expr, &instanceType, nil)
 
 		err = runner.EnsureNoError(err, func() error {
-			return runner.EmitIssue(
-				r,
-				fmt.Sprintf("instance type is %s", instanceType),
-				attribute.Expr.Range(),
-			)
+			if r.instanceTypes[instanceType] {
+				runner.EmitIssue(
+					r,
+					fmt.Sprintf("\"%s\" is invalid instance type.", instanceType),
+					attribute.Expr.Range(),
+				)
+			}
+			return nil
 		})
 		if err != nil {
 			return err

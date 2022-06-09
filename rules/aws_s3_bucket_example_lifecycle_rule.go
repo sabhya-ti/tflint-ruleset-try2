@@ -22,7 +22,7 @@ func (r *AwsS3BucketExampleLifecycleRule) Name() string {
 
 // Enabled returns whether the rule is enabled by default
 func (r *AwsS3BucketExampleLifecycleRule) Enabled() bool {
-	return true
+	return false
 }
 
 // Severity returns the rule severity

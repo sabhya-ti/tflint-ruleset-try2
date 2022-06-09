@@ -29,7 +29,7 @@ func (r *GoogleComputeSSLPolicyRule) Name() string {
 
 // Enabled returns whether the rule is enabled by default
 func (r *GoogleComputeSSLPolicyRule) Enabled() bool {
-	return true
+	return false
 }
 
 // Severity returns the rule severity
