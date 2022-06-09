@@ -1,6 +1,6 @@
-resource "aws_instance" "showcase" {
+resource "aws_instance" "showcase-1" {
   instance_type = var.ec2-instance
-  resource_id   = "showcase"
+  resource_id   = "showcase-1"
 }
 
 resource "aws_instance" "showcase-2" {

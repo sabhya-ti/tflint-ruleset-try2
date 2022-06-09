@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"fmt"
+
 	"github.com/terraform-linters/tflint-plugin-sdk/hclext"
 	"github.com/terraform-linters/tflint-plugin-sdk/tflint"
 )
@@ -8,49 +10,50 @@ import (
 // AwsS3BucketExampleLifecycleRule checks whether ...
 type AwsS3BucketExampleLifecycleRule struct {
 	tflint.DefaultRule
+	resourceType          string
+	attributeName         string
+	instanceTypeRecommend map[string]string //recource ID to recommended instance
 }
 
 // NewAwsS3BucketExampleLifecycleRule returns a new rule
 func NewAwsS3BucketExampleLifecycleRule() *AwsS3BucketExampleLifecycleRule {
-	return &AwsS3BucketExampleLifecycleRule{}
+	return &AwsS3BucketExampleLifecycleRule{
+		resourceType:  "aws_db_instance",
+		attributeName: "instance_class",
+		instanceTypeRecommend: map[string]string{
+			"showcase-1": "t2.micro",
+			"showcase-2": "t2.large",
+		},
+	}
 }
 
 // Name returns the rule name
 func (r *AwsS3BucketExampleLifecycleRule) Name() string {
-	return "aws_s3_bucket_example_lifecycle_rule"
+	return "Mismatch between recommendation and actuality"
 }
 
 // Enabled returns whether the rule is enabled by default
 func (r *AwsS3BucketExampleLifecycleRule) Enabled() bool {
-	return false
+	return true
 }
 
 // Severity returns the rule severity
 func (r *AwsS3BucketExampleLifecycleRule) Severity() tflint.Severity {
-	return tflint.ERROR
+	return tflint.WARNING
 }
 
 // Link returns the rule reference link
 func (r *AwsS3BucketExampleLifecycleRule) Link() string {
-	return ""
+	return "Link goes here!"
 }
 
 // Check checks whether ...
 func (r *AwsS3BucketExampleLifecycleRule) Check(runner tflint.Runner) error {
-	// This rule is an example to get nested resource attributes.
-	resources, err := runner.GetResourceContent("aws_s3_bucket", &hclext.BodySchema{
-		Blocks: []hclext.BlockSchema{
-			{
-				Type: "lifecycle_rule",
-				Body: &hclext.BodySchema{
-					Attributes: []hclext.AttributeSchema{
-						{Name: "enabled"},
-					},
-					Blocks: []hclext.BlockSchema{
-						{Type: "transition"},
-					},
-				},
-			},
+	// This rule is an example to get a top-level resource attribute.
+	resources, err := runner.GetResourceContent("aws_instance", &hclext.BodySchema{
+		Attributes: []hclext.AttributeSchema{
+			{Name: "instance_type"},
+			{Name: "resource_id"},
 		},
 	}, nil)
 	if err != nil {
@@ -58,22 +61,28 @@ func (r *AwsS3BucketExampleLifecycleRule) Check(runner tflint.Runner) error {
 	}
 
 	for _, resource := range resources.Blocks {
-		for _, rule := range resource.Body.Blocks {
-			if err := runner.EmitIssue(r, "`lifecycle_rule` block found", rule.DefRange); err != nil {
-				return err
-			}
+		attribute, exists := resource.Body.Attributes["instance_type"]
+		attribute2, exists2 := resource.Body.Attributes["resource_id"]
+		if !exists || !exists2 {
+			continue
+		}
+		var instanceType string
+		var resoID string
+		err := runner.EvaluateExpr(attribute.Expr, &instanceType, nil)
+		runner.EvaluateExpr(attribute2.Expr, &resoID, nil)
 
-			if attr, exists := rule.Body.Attributes["enabled"]; exists {
-				if err := runner.EmitIssue(r, "`enabled` attribute found", attr.Expr.Range()); err != nil {
-					return err
-				}
+		err = runner.EnsureNoError(err, func() error {
+			if r.instanceTypeRecommend[resoID] != instanceType {
+				runner.EmitIssue(
+					r,
+					fmt.Sprintf("\"%s\" is not recommended instance type. Recommended instance is: \"%s\"", instanceType, r.instanceTypeRecommend[resoID]),
+					attribute.Expr.Range(),
+				)
 			}
-
-			for _, transitions := range rule.Body.Blocks {
-				if err := runner.EmitIssue(r, "`transition` block found", transitions.DefRange); err != nil {
-					return err
-				}
-			}
+			return nil
+		})
+		if err != nil {
+			return err
 		}
 	}
 
